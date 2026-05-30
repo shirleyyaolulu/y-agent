@@ -1,18 +1,16 @@
+from tools import TOOLS
 import json
-from tools import TOOL_DESCRIPTIONS, TOOLS
 
 SYSTEM_PROMPT = f"""
-You are an agent.
+You are a helpful research agent. 
 
-You can either call a tool or give a final answer. 
+Use tools when you need external information, need to read a URL, or need to save a note.
 
-{TOOL_DESCRIPTIONS}
+Do not call tools unnecessarily.
 
-When calling a tool, respond ONLY JSON:
-{{"tool_name":"tool_name", "args":{{...}}}}
+If a tool result is too short, failed, or not enough, decide whether another tool call is needed to get the correct answer.
 
-When finished, respond ONLY JSON:
-{{"final":"..."}}
+When you have enough information, answer the user directly.
 
 """
 
@@ -23,33 +21,49 @@ def run_agent(user_input, call_llm, max_step=8):
     ]
 
     for step in range(max_step):
-        output = call_llm(messages)
-        print(f"LLM Output: {output}")
+        message = call_llm(messages)
 
-        try:
-            response = json.loads(output)
-        except json.JSONDecodeError:
-            return f"Error: LLM output is not valid JSON. Output: {output}"
+        messages.append(message.model_dump(exclude_none=True))
         
-        if "final" in response:
-            return response["final"]
-        
-        tool_name = response.get("tool_name")
-        args = response.get("args", {})
+        print(f"\nAssistant message:\n{message}")
 
-        if tool_name not in TOOLS:
-            return f"Unknown tool: {tool_name}."
-        else:
+        if not message.tool_calls:
+            # No tool calls, we assume the assistant is giving the final answer
+            return message.content or ""
+        
+        for tool_call in message.tool_calls:
+            tool_name = tool_call.function.name
+
             try:
-                result = TOOLS[tool_name](args)
-            except Exception as e:
-                return f"Error occurred while calling tool {tool_name}: {e}"
-        
-        print(f"Tool Name: {tool_name}, Input: {args}, Output: {result}")
+                args = json.loads(tool_call.function.arguments or "{}")
+            except json.JSONDecodeError:
+                result = json.dumps({
+                    "success": False,
+                    "error": {
+                        "type": "invalid_tool_arguments",
+                        "message": tool_call.function.arguments,
+                    },
+                }, ensure_ascii=False)
+            else:
+                if tool_name not in TOOLS:
+                    result = json.dumps({
+                        "success": False,
+                        "error": {
+                            "type": "tool_not_found",
+                            "message": f"Tool '{tool_name}' is not available.",
+                        },
+                    }, ensure_ascii=False)  
+                else:
+                    result = TOOLS[tool_name](args)
+            
+            print(f"\nTool call: {tool_name}")
+            print(f"Args: {args if 'args' in locals() else None}")
+            print(f"Result: {result[:1000]}")
 
-        messages.append({"role":"assistant", "content": output})
-        messages.append({
-            "role":"user",
-            "content": f"Tool result from {tool_name}: {result}"
-        })
-    return "Stopped: reached max steps"
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
+
+    return "Sorry, I couldn't find the answer within the step limit."
