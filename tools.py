@@ -25,11 +25,13 @@ def truncate_text(text, max_chars=MAX_TOOL_CHARS):
 
 
 def get_time(args):
-    return time.strftime("%Y-%m-%d %H:%M:%S")
+    # return time.strftime("%Y-%m-%d %H:%M:%S")
+    return tool_success({"result": time.strftime("%Y-%m-%d %H:%M:%S")})
 
 def calculator(args):
     expr = args.get("expression", "")
-    return str(eval(expr))
+    # return str(eval(expr))
+    return tool_success({"result": str(eval(expr))})
 
 
 def search_web(args):
