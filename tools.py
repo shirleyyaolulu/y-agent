@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import json
 from pathlib import Path
+from memory import save_memory
 
 MAX_TOOL_CHARS = 4000
 NOTES_DIR = Path("notes")
@@ -117,6 +118,23 @@ def save_note(args):
     
     except Exception as e:
         return tool_error(str(e), error_type="save_note_failed")
+    
+
+
+def remember_fact(args):
+    memory_type = args.get("type", "fact")
+    content = args.get("content")
+    if not content:
+        return tool_error("Missing required memory content.", error_type="invalid_memory")
+
+    item = save_memory(memory_type, content)
+
+    return tool_success({
+        "type": item["type"],
+        "content": item["content"],
+        "created_at": item["created_at"],
+    })
+
 
 TOOLS = {
     "get_time": get_time,
@@ -124,7 +142,7 @@ TOOLS = {
     "search_web": search_web,
     "read_url": read_url,
     "save_note": save_note,
-
+    "remember_fact": remember_fact,
 }
 
 
@@ -224,4 +242,26 @@ OPENAI_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "remember_fact",
+            "description": "Save a long-term memory. Use this only when the user explicitly wants to remember for future conversations, such as preference, profile facts, project facts or reusable knowledge. Do not use this for temporary information that is only relevant to the current conversation.",
+            "parameters": {
+                "type": "object",
+                "properties":{
+                    "type": {
+                        "type": "string",
+                        "enum": ["preference", "profile", "project", "fact"],
+                        "description": " The memory catagory.",                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The content of the memory to be saved.",
+                    },
+                },
+            "required": ["type", "content"],
+            "additionalProperties": False
+            }
+        }
+    }
 ]

@@ -1,6 +1,7 @@
 from tools import TOOLS
 import json
 from state import create_initial_state, state_to_context, update_state_after_tool
+from memory import load_memories, format_memories_for_context
 
 SYSTEM_PROMPT = f"""
 You are a helpful research agent. 
@@ -13,6 +14,9 @@ If a tool result is too short, failed, or not enough, decide whether another too
 
 When you have enough information, answer the user directly.
 
+Use remember_fact only when the user explicitly asks you to remember something for future conversations.
+Do not save temporary search results, tool outputs, or ordinary conversation details as long-term memory.
+
 """
 
 args = {}
@@ -20,14 +24,15 @@ args = {}
 def run_agent(user_input, call_llm, max_step=8):
     seen_tool_calls = set()
     state = create_initial_state(user_input)
-
+    
     messages = [
         {"role":"system", "content": SYSTEM_PROMPT},
         {"role":"user", "content": user_input}
     ]
 
     for step in range(max_step):
-        model_message = build_model_message(messages, state)
+        long_term_memories = load_memories()
+        model_message = build_model_message(messages, state, long_term_memories)
         message = call_llm(model_message)
 
         messages.append(message.model_dump(exclude_none=True))
@@ -94,11 +99,16 @@ def run_agent(user_input, call_llm, max_step=8):
 
 
 
-def build_model_message(message, state):
+def build_model_message(message, state, memories):
     keep_recent = 4
     state_message = {
         "role": "system",
         "content": f"Current explicit agent state:\n{state_to_context(state)}"
+    }
+
+    memory_message = {
+        "role": "system",
+        "content": f"Long-term memories:\n{format_memories_for_context(memories)}"
     }
 
     recent_messages = message[1:][-keep_recent:]  # Keep recent user and assistant messages
@@ -107,6 +117,7 @@ def build_model_message(message, state):
 
     return [
         message[0],
+        memory_message,
         state_message
     ]+recent_messages
 
