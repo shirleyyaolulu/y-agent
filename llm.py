@@ -2,7 +2,7 @@ import os
 import json
 
 from openai import OpenAI
-from tools import OPENAI_TOOLS
+from tool_registry  import OPENAI_TOOLS
 
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),

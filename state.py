@@ -21,7 +21,7 @@ def parse_tool_result(result):
         return {
             "success": False,
             "error": {
-                "type": "invalid_tool_result",
+                "type": "parse_tool_result",
                 "message": result,
             },
         }
@@ -30,10 +30,17 @@ def update_state_after_tool(state, tool_name, args, result):
     parsed = parse_tool_result(result)
 
     if not parsed.get("success"):
+        error = parsed.get("error")
+        if not error:
+            error = {
+                "type": parsed.get("error_type", "unknown_error"),
+                "message": parsed.get("message", result),
+            }
+
         state["error"].append({
             "tool": tool_name,
             "args": args,
-            "error": parsed.get("error", {"type": "unknown_error", "message": result}),
+            "error": error,
         })
     else: 
         data = parsed.get("data")

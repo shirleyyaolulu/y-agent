@@ -1,9 +1,8 @@
-from tools import TOOLS
-import json
-from state import create_initial_state, update_state_after_tool
+from state import create_initial_state
 from memory import load_memories
 from thread import create_thread, new_id, load_thread_messages, append_item
 from context_manager import build_model_messages
+from tool_runtime import execute_tool_call
 
 SYSTEM_PROMPT = f"""
 You are a helpful research agent. 
@@ -97,43 +96,7 @@ def run_agent(user_input, call_llm, max_step=8, thread_id=None):
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
 
-            try:
-                args = json.loads(tool_call.function.arguments or "{}")
-            except json.JSONDecodeError:
-                result = json.dumps({
-                    "success": False,
-                    "error": {
-                        "type": "invalid_tool_arguments",
-                        "message": tool_call.function.arguments,
-                    },
-                }, ensure_ascii=False)
-            else:
-                if tool_name not in TOOLS:
-                    result = json.dumps({
-                        "success": False,
-                        "error": {
-                            "type": "tool_not_found",
-                            "message": f"Tool '{tool_name}' is not available.",
-                        },
-                    }, ensure_ascii=False)  
-                else:
-                    call_key = (
-                        tool_name,
-                        json.dumps(args, sort_keys=True, ensure_ascii=False)
-                    )
-                    if call_key in seen_tool_calls:
-                        result = json.dumps({
-                            "success": False,
-                            "error": {
-                                "type": "duplicate_tool_call    ",
-                                "message": f"Tool '{tool_name}' with the same arguments has already been called. Use previous observation from state instead of calling again.",
-                            },
-                        }, ensure_ascii=False)
-                    else:
-                        seen_tool_calls.add(call_key)
-                        result = TOOLS[tool_name](args)
-
-            state = update_state_after_tool(state, tool_name, args, result)
+            args, result, state = execute_tool_call(tool_call, state, seen_tool_calls)
             
             print(f"\nTool call: {tool_name}")
             print(f"Args: {args if 'args' in locals() else None}")
