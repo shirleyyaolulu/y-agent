@@ -3,6 +3,7 @@ from memory import load_memories
 from thread import create_thread, new_id, load_thread_messages, append_item
 from context_manager import build_model_messages
 from tool_runtime import execute_tool_call
+import json
 
 SYSTEM_PROMPT = f"""
 You are a helpful research agent. 
@@ -22,7 +23,7 @@ Do not save temporary search results, tool outputs, or ordinary conversation det
 
 args = {}
 
-def run_agent(user_input, call_llm, max_step=8, thread_id=None):
+def run_agent(user_input, call_llm, max_step=8, thread_id=None, sandbox_policy=None, approval_policy=None):
     if thread_id == None:
         thread_id = create_thread()
     turn_id = new_id("turn")
@@ -96,7 +97,14 @@ def run_agent(user_input, call_llm, max_step=8, thread_id=None):
         for tool_call in message.tool_calls:
             tool_name = tool_call.function.name
 
-            args, result, state = execute_tool_call(tool_call, state, seen_tool_calls)
+            args, result, state = execute_tool_call(
+                tool_call=tool_call, 
+                state=state, 
+                seen_tool_calls=seen_tool_calls,
+                sandbox_policy=sandbox_policy,
+                approval_policy=approval_policy,
+                approval_callback=ask_user_approval
+            )
             
             print(f"\nTool call: {tool_name}")
             print(f"Args: {args if 'args' in locals() else None}")
@@ -129,3 +137,15 @@ def run_agent(user_input, call_llm, max_step=8, thread_id=None):
     }
 
 
+def ask_user_approval(tool_name, args, reason):
+    print("\nApproval required")
+    print(f"Tool: {tool_name}")
+    print(f"Reason: {reason}")
+    print("Args:")
+    print(json.dumps(args, ensure_ascii=False, indent=2))
+    
+    try:
+        answer = input("Approve this tool call? [y/N]: ").strip().lower()
+    except EOFError:
+        return False
+    return answer in {"y", "yes"}

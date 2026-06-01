@@ -15,6 +15,7 @@ class ToolSpec:
     description: str
     parameters: dict
     handler: callable
+    capability: str = "read"
 
 
 TOOL_SPECS = [
@@ -27,6 +28,7 @@ TOOL_SPECS = [
             "required": [],
         },
         handler=get_time,
+        capability="read",
     ),
     ToolSpec(
         name="calculator",
@@ -43,6 +45,7 @@ TOOL_SPECS = [
             "additionalProperties": False,
         },
         handler=calculator,
+        capability="read", 
     ),
     ToolSpec(
         name="search_web",
@@ -66,6 +69,7 @@ TOOL_SPECS = [
             "additionalProperties": False,
         },
         handler=search_web,
+        capability="network",
     ),
     ToolSpec(
         name="read_url",
@@ -82,6 +86,7 @@ TOOL_SPECS = [
             "additionalProperties": False,  
         },
         handler=read_url,
+        capability="network",
     ),
     ToolSpec(
         name="save_note",
@@ -102,6 +107,7 @@ TOOL_SPECS = [
             "additionalProperties": False,  
         },
         handler=save_note,  
+        capability="write",
     ),
     ToolSpec(
         name="remember_fact",
@@ -123,6 +129,7 @@ TOOL_SPECS = [
             "additionalProperties": False,
         },
         handler=remember_fact,
+        capability="write",
     ),
 ]
 
