@@ -2,6 +2,7 @@ import json
 import time
 import uuid 
 from pathlib import Path
+from context_manager import is_assistant_tool_call, read_tool_call_group
 
 
 THREADS_DIR = Path("threads")
@@ -78,28 +79,14 @@ def drop_incomplete_tool_call_tail(messages):
 
     while i < len(messages):
         message = messages[i]
+        if is_assistant_tool_call(message):
+            group, next_index = read_tool_call_group(messages, i)
 
-        if message.get("role") == "assistant" and message.get("tool_calls"):
-            # lm 返回的所有tool calls 
-            expected_ids = [tc["id"] for tc in message["tool_calls"]]  
-            group = [message]
-
-            # 从下一个message开始检查
-            j = i + 1 
-
-            for tool_call_id in expected_ids:
-                if j >= len(messages):
-                    return clean # 没有更多消息了，直接返回已经处理的消息
-                
-                tool_message = messages[j]
-                if (tool_message.get("role")!= "tool" or tool_message.get("tool_call_id") != tool_call_id):
-                    return clean # 下一个消息不是预期的tool结果或者tool_call_id不匹配，返回已经处理的消息
-
-                group.append(tool_message)
-                j += 1
+            if group is None:
+                return clean
 
             clean.extend(group)
-            i = j  # 跳过已经处理的消息
+            i = next_index
             continue
 
         if message.get("role") == "tool":

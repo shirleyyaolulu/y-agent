@@ -1,8 +1,9 @@
 from tools import TOOLS
 import json
-from state import create_initial_state, state_to_context, update_state_after_tool
-from memory import load_memories, format_memories_for_context
+from state import create_initial_state, update_state_after_tool
+from memory import load_memories
 from thread import create_thread, new_id, load_thread_messages, append_item
+from context_manager import build_model_messages
 
 SYSTEM_PROMPT = f"""
 You are a helpful research agent. 
@@ -55,7 +56,7 @@ def run_agent(user_input, call_llm, max_step=8, thread_id=None):
 
     for step in range(max_step):
         long_term_memories = load_memories()
-        model_message = build_model_message(messages, state, long_term_memories)
+        model_message = build_model_messages(messages, state, long_term_memories)
         message = call_llm(model_message)
         assistant_message = message.model_dump(exclude_none=True)
         messages.append(assistant_message)
@@ -165,33 +166,3 @@ def run_agent(user_input, call_llm, max_step=8, thread_id=None):
     }
 
 
-
-def build_model_message(message, state, memories):
-    keep_recent = 4
-    state_message = {
-        "role": "system",
-        "content": f"Current explicit agent state:\n{state_to_context(state)}"
-    }
-
-    memory_message = {
-        "role": "system",
-        "content": f"Long-term memories:\n{format_memories_for_context(memories)}"
-    }
-
-    recent_messages = message[1:][-keep_recent:]  # Keep recent user and assistant messages
-    while recent_messages and is_tool_message(recent_messages[0]):
-        recent_messages = recent_messages[1:]
-
-    return [
-        message[0],
-        memory_message,
-        state_message
-    ]+recent_messages
-
-
-def is_tool_message(message):
-    return message.get("role") == "tool"
-
-
-def has_tool_call(message):
-    return bool(message.get("tool_calls"))
