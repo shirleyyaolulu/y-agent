@@ -26,6 +26,18 @@ def make_summary_message(summary):
         "content": "Compacted previous context:\n" + summary
     }
 
+def make_skill_message(skill):
+    return {
+        "role": "system",
+        "content": (
+            "Active skill / process instructions:\n"
+            f"## {skill.name}\n"
+            f"Description: {skill.description}\n"
+            f"Source: {skill.path}\n\n"
+            f"{skill.content}"
+        ),
+    }
+
 def build_protocol_chunks(messages):
     # 返回的是二维的数组，每个元素都是一个chunk，chunk是一个消息列表，包含一个assistant消息和它对应的tool结果消息
     chunks = []
@@ -68,14 +80,19 @@ def select_recent_messages(messages, max_recent_chunks=DEFAULT_MAX_RECENT_CHUNKS
 def build_model_messages(messages, 
                         state, 
                         memories,
+                        skill=None,
                         compacted_summary=None,
                         max_recent_chunks=DEFAULT_MAX_RECENT_CHUNKS):
     system_message = messages[0]
+    context_messages = [system_message]
 
-    context_messages = [system_message,
-                        make_memory_message(memories),
-                        make_state_message(state)
-                        ]
+    if skill is not None:
+        context_messages.append(make_skill_message(skill))
+
+    context_messages.extend([
+        make_state_message(state),
+        make_memory_message(memories),
+    ])
     
     summary_message = make_summary_message(compacted_summary)
     if summary_message:

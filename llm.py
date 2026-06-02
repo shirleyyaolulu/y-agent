@@ -20,3 +20,12 @@ def call_llm(messages):
 
     print(f"LLM call with messages: {json.dumps(messages, indent=2)} \n")
     return res.choices[0].message
+
+
+def call_llm_plain(messages):
+    resp = client.chat.completions.create(
+        model="deepseek-v4-pro",
+        messages=messages,
+        temperature=0,
+    )
+    return resp.choices[0].message

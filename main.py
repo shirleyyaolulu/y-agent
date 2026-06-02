@@ -1,7 +1,7 @@
 # main.py
 import sys
 from agent import run_agent
-from llm import call_llm
+from llm import call_llm, call_llm_plain
 
 
 
@@ -24,19 +24,22 @@ def main():
         else:
             user_input = input("User: ")
         
-        result = run_agent(user_input, call_llm, thread_id=None)
+        result = run_agent(
+            user_input=user_input, 
+            call_llm=call_llm, 
+            skill_router_llm = call_llm_plain,
+            thread_id=None)
     elif command == "resume":
         if len(sys.argv) < 4:
             print_usage()
             return
         thread_id = sys.argv[2]
         user_input = " ".join(sys.argv[3:])
-        result = run_agent(user_input, call_llm, thread_id=thread_id)
-    else:
-        print_usage()
-        return
-    
-    print("\nTHREAD:")
+        result = run_agent(
+            user_input=user_input, 
+            call_llm=call_llm, 
+            skill_router_llm= call_llm_plain,
+            thread_id=thread_id)
     print(result["thread_id"])
 
     print("\nTURN:")

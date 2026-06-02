@@ -4,6 +4,8 @@ from thread import create_thread, new_id, load_thread_messages, append_item
 from context_manager import build_model_messages
 from tool_runtime import execute_tool_call
 import json
+from skill_loader import discover_skill_metadata, load_skills
+from skill_router import select_skill_name
 
 SYSTEM_PROMPT = f"""
 You are a helpful research agent. 
@@ -23,7 +25,7 @@ Do not save temporary search results, tool outputs, or ordinary conversation det
 
 args = {}
 
-def run_agent(user_input, call_llm, max_step=8, thread_id=None, sandbox_policy=None, approval_policy=None):
+def run_agent(user_input, call_llm, skill_router_llm=None, max_step=8, thread_id=None, sandbox_policy=None, approval_policy=None):
     if thread_id == None:
         thread_id = create_thread()
     turn_id = new_id("turn")
@@ -33,7 +35,28 @@ def run_agent(user_input, call_llm, max_step=8, thread_id=None, sandbox_policy=N
 
     seen_tool_calls = set()
     state = create_initial_state(user_input)
-    
+
+    # 1. skill discovery and routing
+    active_skill = None
+    selected_skill_name = None
+    skill_reason = "Skill router not configured"
+
+    try:
+        if skill_router_llm is not None:
+            skill_metas = discover_skill_metadata()
+            selected_skill_name, skill_reason = select_skill_name(
+                user_input=user_input, 
+                skill_metas=skill_metas, 
+                skill_router_llm=skill_router_llm)
+            meta_by_name = {meta.name: meta for meta in skill_metas}
+            if selected_skill_name in meta_by_name:
+                active_skill = load_skills(meta_by_name[selected_skill_name])
+    except Exception as e:
+        print(f"Error during skill routing: {e}")
+        selected_skill_name = None
+        skill_reason = f"Error during skill routing: {e}"
+                                                                  
+
     messages = [
         {"role":"system", "content": SYSTEM_PROMPT},
         ] + history_message + [
@@ -54,9 +77,31 @@ def run_agent(user_input, call_llm, max_step=8, thread_id=None, sandbox_policy=N
         {"message": {"role": "user", "content": user_input}},
     )
 
+    append_item(
+        thread_id,
+        turn_id,
+        "skill_selection",
+        {
+            "selected": selected_skill_name,
+            "reason": skill_reason,
+            "skill": (
+                {
+                    "name": active_skill.name,
+                    "description": active_skill.description,
+                    "path": active_skill.path,
+                }
+            ) if active_skill else None,
+        },
+    )
+
     for step in range(max_step):
         long_term_memories = load_memories()
-        model_message = build_model_messages(messages, state, long_term_memories)
+        model_message = build_model_messages(
+            messages=messages, 
+            state=state,
+            memories=long_term_memories,
+            skill=active_skill)
+        
         message = call_llm(model_message)
         assistant_message = message.model_dump(exclude_none=True)
         messages.append(assistant_message)
